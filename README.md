@@ -1,2 +1,14 @@
-# Behaviour_tracker
-A lightweight user behavior tracker built with plain HTML, CSS and JavaScript. It records clicks, mouse movements and scrolling, and shows them as click dots and an arrow-based mouse path.
+# Behavior Tracker
+
+A lightweight user behavior tracker built with HTML, CSS and JavaScript.
+
+## Features
+- Counts clicks, mouse moves and scrolls
+- Shows click dots (numbered) on demand
+- Shows the mouse path with arrows on demand
+- Tracks scroll depth and time on page
+- Summary view and JSON export
+- Light and dark mode
+
+## Usage
+Open `index.html` in any browser. No installation needed.
