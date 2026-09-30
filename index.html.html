@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>User Behavior Tracker</title>
+<style>
+  :root {
+    --bg: #fdf0f8; --panel: #ffffff; --ink: #4a2c5e; --muted: #9a78b0;
+    --line: #f0d4ec; --accent: #c39bf0; --accent-ink: #3d1f55;
+    --btn: #ffe4f2; --btn-hover: #ffd1ea; --btn-line: #f7bcdc;
+    --grad: linear-gradient(135deg, #ffb3d9 0%, #d3b4f7 100%);
+    --danger: #d6336c;
+    --dot: #ff6fb1; --dot-ring: rgba(255,111,177,.28); --path: 150,85,220;
+    --shadow: 0 8px 28px rgba(190,120,200,.22);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #241432; --panel: #301c42; --ink: #f8e9fb; --muted: #c6a5d8;
+      --line: #4b3064; --accent: #d9b0f7; --accent-ink: #2e1842;
+      --btn: #43265a; --btn-hover: #523070; --btn-line: #6b4490;
+      --grad: linear-gradient(135deg, #ff9ccb 0%, #c7a2f5 100%);
+      --danger: #ff8ebb;
+      --dot: #ff9ccb; --dot-ring: rgba(255,156,203,.28); --path: 217,176,247;
+      --shadow: 0 8px 28px rgba(0,0,0,.45);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 30px; background: var(--bg); background-image: radial-gradient(circle at 15% 10%, rgba(255,179,217,.25), transparent 45%), radial-gradient(circle at 85% 30%, rgba(195,155,240,.22), transparent 45%); background-attachment: fixed; color: var(--ink);
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; line-height: 1.55;
+  }
+  main { max-width: 760px; margin: 0 auto; padding-right: 250px; }
+  @media (max-width: 900px) { main { padding-right: 0; padding-top: 250px; } }
+  h1 { margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+  nav { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+  .button {
+    font: inherit; padding: 14px 24px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--btn-line); background: var(--btn); color: var(--ink);
+    transition: transform .12s ease, background .12s ease;
+  }
+  .button:hover { background: var(--btn-hover); }
+  .button:active { transform: scale(.97); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 30px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .card h3 { margin: 0 0 6px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
+  section.block { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px; margin-bottom: 18px; }
+  section.block h2 { margin-top: 0; }
+  .tall { height: 420px; }
+
+  /* ---------- tracking layer (dots + trail) ---------- */
+  #layer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 50; overflow: hidden; }
+  #trail { position: absolute; left: 0; top: 0; }
+  .dot {
+    position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+    background: var(--dot); box-shadow: 0 0 0 7px var(--dot-ring); animation: pop .3s ease;
+  }
+  .dot span {
+    position: absolute; left: 18px; top: -16px; font-size: 11px; font-weight: bold;
+    background: var(--panel); color: var(--ink); padding: 1px 6px; border-radius: 6px;
+    border: 1px solid var(--line);
+  }
+  @keyframes pop { from { transform: scale(0); } 70% { transform: scale(1.35); } to { transform: scale(1); } }
+  body.hide-dots .dot { display: none; }
+  body.hide-nums .dot span { display: none; }
+
+  /* ---------- stats panel ---------- */
+  #stats {
+    position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; z-index: 100;
+    width: 230px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 14px; box-shadow: var(--shadow);
+  }
+  #stats h3 { margin: 0 0 10px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { background: var(--bg); border-radius: 10px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 20px; line-height: 1.2; }
+  .stat span { font-size: 11px; color: var(--muted); }
+  .wide { grid-column: span 2; }
+  .wide b { font-size: 13px; word-break: break-word; }
+  .bar { height: 6px; background: var(--line); border-radius: 99px; margin-top: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--grad); transition: width .15s; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .toggles label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #stats button {
+    font: inherit; font-size: 13px; padding: 8px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--btn-line); background: var(--btn); color: var(--ink);
+    transition: transform .12s ease, background .12s ease;
+  }
+  #stats button:hover { background: var(--btn-hover); }
+  #stats button:active { transform: scale(.97); }
+  #stats button.primary { background: var(--grad); color: var(--accent-ink); border-color: transparent; grid-column: span 2; font-weight: bold; }
+  #stats button.primary:hover { filter: brightness(1.05); }
+  #stats button.danger { color: var(--danger); }
+  input[type=checkbox] { accent-color: #c39bf0; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  #stats.min .body { display: none; }
+
+  /* ---------- summary dialog ---------- */
+  dialog {
+    border: 0; border-radius: 16px; padding: 0; width: min(480px, 92vw);
+    background: var(--panel); color: var(--ink); box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  dialog::backdrop { background: rgba(10,14,30,.55); }
+  .dlg { padding: 22px; }
+  .dlg h2 { margin: 0 0 12px; font-size: 18px; }
+  .dlg .grid { grid-template-columns: repeat(3, 1fr); margin-bottom: 14px; }
+  .list { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: normal; }
+  .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .foot button { font: inherit; padding: 8px 16px; border-radius: 8px; cursor: pointer; border: 1px solid var(--btn-line); background: var(--btn); color: var(--ink); }
+  .foot button:hover { background: var(--btn-hover); }
+  .foot .primary { background: var(--grad); color: var(--accent-ink); border-color: transparent; font-weight: bold; }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } .bar i { transition: none; } }
+</style>
+</head>
+<body class="hide-dots">
+
+<!-- ============ Tracker panel ============ -->
+<aside id="stats">
+  <h3>Tracker <button id="btnMin" type="button" aria-label="Collapse panel" style="padding:2px 9px">–</button></h3>
+  <div class="body">
+    <div class="grid">
+      <div class="stat"><b id="clickCount">0</b><span>Total clicks</span></div>
+      <div class="stat"><b id="moveCount">0</b><span>Mouse moves</span></div>
+      <div class="stat"><b id="scrollCount">0</b><span>Scrolls</span></div>
+      <div class="stat"><b id="timeOnPage">0s</b><span>Time on page</span></div>
+      <div class="stat wide">
+        <b id="depthText">0%</b><span>Max scroll depth</span>
+        <div class="bar"><i id="depthBar"></i></div>
+      </div>
+      <div class="stat wide"><b id="lastClick">–</b><span>Last clicked element</span></div>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="tgNums" checked> Numbers</label>
+    </div>
+
+    <div class="btns">
+      <button class="primary" id="btnSubmit" type="button">Submit / View summary</button>
+      <button id="btnUndo" type="button">Undo click</button>
+      <button id="btnExport" type="button">Export JSON</button>
+      <button id="btnDots" type="button" style="grid-column: span 2">Show click dots</button>
+      <button id="btnPath" type="button" style="grid-column: span 2">Show mouse path</button>
+      <button class="danger" id="btnReset" type="button" style="grid-column: span 2">Reset</button>
+    </div>
+  </div>
+</aside>
+
+<!-- ============ Demo website ============ -->
+<main>
+  <h1>My Website</h1>
+  <p class="sub">Move your mouse, click different elements and scroll the page.</p>
+
+  <nav>
+    <button class="button" id="navHome">Home</button>
+    <button class="button" id="navProducts">Products</button>
+    <button class="button" id="navContact">Contact</button>
+  </nav>
+
+  <div class="cards">
+    <div class="card"><h3>Fast delivery</h3><p>Same-day shipping on most orders.</p></div>
+    <div class="card"><h3>Easy returns</h3><p>30 days, no questions asked.</p></div>
+    <div class="card"><h3>24/7 support</h3><p>Chat or call, any time.</p></div>
+  </div>
+
+  <section class="block tall"><h2>About us</h2><p>Scroll down to see the scroll depth update. Try clicking here too.</p></section>
+  <section class="block tall"><h2>Our products</h2><p>Every click and mouse move is recorded. Use the Show click dots and Show mouse path buttons in the tracker to see them.</p></section>
+  <section class="block tall"><h2>Contact</h2><p>Scroll all the way to the bottom of the page.</p></section>
+</main>
+
+<!-- dots + mouse trail layer -->
+<div id="layer"><canvas id="trail"></canvas></div>
+
+<!-- ============ Summary dialog ============ -->
+<dialog id="dlg">
+  <div class="dlg">
+    <h2>Behavior summary</h2>
+    <div class="grid">
+      <div class="stat"><b id="sClicks">0</b><span>Clicks</span></div>
+      <div class="stat"><b id="sMoves">0</b><span>Mouse moves</span></div>
+      <div class="stat"><b id="sScrolls">0</b><span>Scrolls</span></div>
+      <div class="stat"><b id="sDepth">0%</b><span>Scroll depth</span></div>
+      <div class="stat"><b id="sTime">0s</b><span>Time on page</span></div>
+      <div class="stat"><b id="sRate">0</b><span>Clicks / min</span></div>
+    </div>
+    <div class="list">
+      <table>
+        <thead><tr><th>Most clicked element</th><th>Clicks</th></tr></thead>
+        <tbody id="sRows"></tbody>
+      </table>
+    </div>
+    <div class="foot">
+      <button id="dlgExport" type="button">Export JSON</button>
+      <button class="primary" id="dlgClose" type="button">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const layer = $("layer"), trail = $("trail"), ctx = trail.getContext("2d"), stats = $("stats");
+
+let clickCount = 0, moveCount = 0, scrollCount = 0, maxDepth = 0;
+let clicks = [], mouseMovements = [], scrollEvents = [], dots = [];
+let startTime = Date.now(), lastMoveSaved = 0;
+const MAX_MOVES = 5000;   // keeps memory use under control
+
+/* ---------- layer size (matches the full page) ---------- */
+function sizeLayer() {
+  layer.style.width = layer.style.height = "0px";
+  const w = document.documentElement.scrollWidth, h = document.documentElement.scrollHeight;
+  layer.style.width = w + "px"; layer.style.height = h + "px";
+  trail.width = w; trail.height = h;
+  drawPath();
+}
+let pathVisible = false;
+
+function drawPath() {
+  ctx.clearRect(0, 0, trail.width, trail.height);
+  if (!pathVisible || mouseMovements.length < 2) return;
+
+  const cs = getComputedStyle(document.documentElement);
+  const rgb = cs.getPropertyValue("--path").trim();
+  const ink = cs.getPropertyValue("--ink").trim();
+  const halo = cs.getPropertyValue("--panel").trim();
+
+  // keep only points that are far enough apart so the arrows stay readable
+  const pts = [mouseMovements[0]];
+  mouseMovements.forEach((m) => {
+    const p = pts[pts.length - 1];
+    if (Math.hypot(m.pageX - p.pageX, m.pageY - p.pageY) >= 50) pts.push(m);
+  });
+  const last = mouseMovements[mouseMovements.length - 1];
+  const tail = pts[pts.length - 1];
+  if (Math.hypot(last.pageX - tail.pageX, last.pageY - tail.pageY) > 8) pts.push(last);
+  if (pts.length < 2) return;
+
+  // the route
+  ctx.strokeStyle = "rgba(" + rgb + ",.65)"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.beginPath();
+  pts.forEach((m, i) => (i ? ctx.lineTo(m.pageX, m.pageY) : ctx.moveTo(m.pageX, m.pageY)));
+  ctx.stroke();
+
+  // an arrowhead in the middle of every segment shows the direction
+  ctx.fillStyle = "rgba(" + rgb + ",.95)";
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const mx = (a.pageX + b.pageX) / 2, my = (a.pageY + b.pageY) / 2;
+    const ang = Math.atan2(b.pageY - a.pageY, b.pageX - a.pageX), size = 10;
+    ctx.save();
+    ctx.translate(mx, my); ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(size, 0); ctx.lineTo(-size * 0.7, -size * 0.65); ctx.lineTo(-size * 0.7, size * 0.65);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // start and end markers
+  function marker(pt, text, fill) {
+    ctx.beginPath(); ctx.arc(pt.pageX, pt.pageY, 7, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.stroke();
+    ctx.font = "bold 12px 'Trebuchet MS', sans-serif";
+    ctx.lineWidth = 4; ctx.strokeStyle = halo; ctx.strokeText(text, pt.pageX + 11, pt.pageY - 10);
+    ctx.fillStyle = ink; ctx.fillText(text, pt.pageX + 11, pt.pageY - 10);
+  }
+  marker(pts[0], "Start", "#ff6fb1");
+  marker(pts[pts.length - 1], "End", "#9b5de5");
+}
+window.addEventListener("load", sizeLayer);
+window.addEventListener("resize", sizeLayer);
+
+/* ---------- helpers ---------- */
+const inPanel = (e) => e.target.closest("#stats, dialog");
+function label(el) {
+  let s = el.tagName.toLowerCase();
+  if (el.id) s += "#" + el.id;
+  else if (typeof el.className === "string" && el.className.trim()) s += "." + el.className.trim().split(/\s+/)[0];
+  const t = (el.innerText || "").trim().replace(/\s+/g, " ");
+  if (t) s += ' "' + (t.length > 24 ? t.slice(0, 24) + "…" : t) + '"';
+  return s;
+}
+const fmtTime = (s) => (s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s");
+const secs = () => Math.round((Date.now() - startTime) / 1000);
+
+/* ---------- MOUSE MOVEMENT ---------- */
+document.addEventListener("mousemove", (e) => {
+  if (inPanel(e)) return;
+  moveCount++;
+  $("moveCount").textContent = moveCount;
+
+  const now = Date.now();
+  if (now - lastMoveSaved < 40 || mouseMovements.length >= MAX_MOVES) return;   // throttle
+  lastMoveSaved = now;
+  const m = { x: e.clientX, y: e.clientY, pageX: e.pageX, pageY: e.pageY, time: new Date().toISOString() };
+  mouseMovements.push(m);
+  if (pathVisible) drawPath();   // keep the arrows up to date while the path is shown
+});
+
+/* ---------- CLICK TRACKING + DOT PLOT ---------- */
+document.addEventListener("click", (e) => {
+  if (inPanel(e)) return;
+  clickCount++;
+  $("clickCount").textContent = clickCount;
+
+  const el = e.target, name = label(el);
+  clicks.push({
+    n: clickCount, x: e.clientX, y: e.clientY, pageX: e.pageX, pageY: e.pageY,
+    element: el.tagName, id: el.id, className: el.className, text: (el.innerText || "").trim().slice(0, 60),
+    label: name, time: new Date().toISOString()
+  });
+  $("lastClick").textContent = name;
+
+  const dot = document.createElement("div");
+  dot.className = "dot";
+  dot.style.left = e.pageX + "px"; dot.style.top = e.pageY + "px";
+  dot.innerHTML = "<span>" + clickCount + "</span>";
+  layer.appendChild(dot); dots.push(dot);
+});
+
+/* ---------- SCROLL TRACKING ---------- */
+window.addEventListener("scroll", () => {
+  scrollCount++;
+  $("scrollCount").textContent = scrollCount;
+  const doc = document.documentElement;
+  const depth = Math.min(100, Math.round(((window.scrollY + window.innerHeight) / doc.scrollHeight) * 100));
+  if (depth > maxDepth) { maxDepth = depth; $("depthText").textContent = depth + "%"; $("depthBar").style.width = depth + "%"; }
+  scrollEvents.push({ scrollY: window.scrollY, depth: depth, time: new Date().toISOString() });
+}, { passive: true });
+
+/* ---------- time on page ---------- */
+setInterval(() => { $("timeOnPage").textContent = fmtTime(secs()); }, 1000);
+
+/* ---------- VIEW DATA ---------- */
+window.getTrackingData = function () {
+  return {
+    totalClicks: clickCount, totalMouseMovements: moveCount, totalScrolls: scrollCount,
+    maxScrollDepthPercent: maxDepth, timeOnPageSeconds: secs(),
+    clicks: clicks, mouseMovements: mouseMovements, scrollEvents: scrollEvents
+  };
+};
+
+/* ---------- buttons ---------- */
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(window.getTrackingData(), null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "tracking-data.json"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+$("btnExport").addEventListener("click", exportJSON);
+$("dlgExport").addEventListener("click", exportJSON);
+
+$("btnSubmit").addEventListener("click", () => {
+  const t = secs();
+  $("sClicks").textContent = clickCount; $("sMoves").textContent = moveCount;
+  $("sScrolls").textContent = scrollCount; $("sDepth").textContent = maxDepth + "%";
+  $("sTime").textContent = fmtTime(t);
+  $("sRate").textContent = t ? (clickCount / (t / 60)).toFixed(1) : "0";
+
+  const tally = {};
+  clicks.forEach((c) => { tally[c.label] = (tally[c.label] || 0) + 1; });
+  const rows = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  $("sRows").innerHTML = rows.length
+    ? rows.map(([k, v]) => "<tr><td>" + k.replace(/</g, "&lt;") + "</td><td>" + v + "</td></tr>").join("")
+    : '<tr><td colspan="2">No clicks yet</td></tr>';
+  $("dlg").showModal();
+});
+$("dlgClose").addEventListener("click", () => $("dlg").close());
+
+$("btnUndo").addEventListener("click", () => {
+  if (!clicks.length) return;
+  clicks.pop(); dots.pop().remove();
+  clickCount = clicks.length;
+  $("clickCount").textContent = clickCount;
+  $("lastClick").textContent = clicks.length ? clicks[clicks.length - 1].label : "–";
+});
+
+$("btnReset").addEventListener("click", () => {
+  dots.forEach((d) => d.remove());
+  clicks = []; mouseMovements = []; scrollEvents = []; dots = [];
+  clickCount = moveCount = scrollCount = maxDepth = 0;
+  startTime = Date.now();
+  ["clickCount", "moveCount", "scrollCount"].forEach((id) => ($(id).textContent = "0"));
+  $("depthText").textContent = "0%"; $("depthBar").style.width = "0"; $("lastClick").textContent = "–";
+  $("timeOnPage").textContent = "0s";
+  pathVisible = false; $("btnPath").textContent = "Show mouse path";
+  document.body.classList.add("hide-dots"); $("btnDots").textContent = "Show click dots";
+  ctx.clearRect(0, 0, trail.width, trail.height);
+});
+
+$("btnDots").addEventListener("click", () => {
+  const btn = $("btnDots");
+  const showing = !document.body.classList.contains("hide-dots");
+  if (!showing && clicks.length === 0) {
+    btn.textContent = "Click somewhere first";
+    setTimeout(() => { btn.textContent = "Show click dots"; }, 1500);
+    return;
+  }
+  document.body.classList.toggle("hide-dots", showing);
+  btn.textContent = showing ? "Show click dots" : "Hide click dots";
+});
+
+$("btnPath").addEventListener("click", () => {
+  const btn = $("btnPath");
+  if (mouseMovements.length < 2) {
+    btn.textContent = "Move your mouse first";
+    setTimeout(() => { btn.textContent = pathVisible ? "Hide mouse path" : "Show mouse path"; }, 1500);
+    return;
+  }
+  pathVisible = !pathVisible;
+  drawPath();
+  btn.textContent = pathVisible ? "Hide mouse path" : "Show mouse path";
+});
+
+$("btnMin").addEventListener("click", () => {
+  const min = stats.classList.toggle("min");
+  $("btnMin").textContent = min ? "+" : "–";
+});
+
+$("tgNums").addEventListener("change", (e) => document.body.classList.toggle("hide-nums", !e.target.checked));
+</script>
+</body>
+</html>
